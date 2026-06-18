@@ -68,6 +68,77 @@ def add_3d_line(
     )
 
 
+def add_coordinate_axes(fig: go.Figure, axis_limit: float) -> None:
+    """
+    Adds 3D coordinate axes through the origin.
+    """
+    axis_style = "rgba(255, 255, 255, 0.85)"
+
+    # X axis
+    fig.add_trace(
+        go.Scatter3d(
+            x=[-axis_limit, axis_limit],
+            y=[0, 0],
+            z=[0, 0],
+            mode="lines+text",
+            name="x-axis",
+            line=dict(color=axis_style, width=5),
+            text=["", "x"],
+            textposition="top center",
+            textfont=dict(color="white", size=14),
+            showlegend=False,
+        )
+    )
+
+    # Y axis
+    fig.add_trace(
+        go.Scatter3d(
+            x=[0, 0],
+            y=[-axis_limit, axis_limit],
+            z=[0, 0],
+            mode="lines+text",
+            name="y-axis",
+            line=dict(color=axis_style, width=5),
+            text=["", "y"],
+            textposition="top center",
+            textfont=dict(color="white", size=14),
+            showlegend=False,
+        )
+    )
+
+    # Z axis
+    fig.add_trace(
+        go.Scatter3d(
+            x=[0, 0],
+            y=[0, 0],
+            z=[-axis_limit, axis_limit],
+            mode="lines+text",
+            name="z-axis",
+            line=dict(color=axis_style, width=5),
+            text=["", "z"],
+            textposition="top center",
+            textfont=dict(color="white", size=14),
+            showlegend=False,
+        )
+    )
+
+    # Origin
+    fig.add_trace(
+        go.Scatter3d(
+            x=[0],
+            y=[0],
+            z=[0],
+            mode="markers+text",
+            name="origin",
+            marker=dict(size=4, color="white"),
+            text=["O"],
+            textposition="bottom center",
+            textfont=dict(color="white", size=12),
+            showlegend=False,
+        )
+    )
+
+
 def add_fundamental_parallelepiped(
     fig: go.Figure,
     B: np.ndarray,
@@ -238,6 +309,7 @@ def create_3d_plot(
         )
 
     max_abs = max(1.0, float(np.max(np.abs(lattice_points))))
+    add_coordinate_axes(fig, max_abs)
 
     fig.update_layout(
         title=dict(text="3D Lattice Visualization", font=dict(color="white", size=18)),
