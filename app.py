@@ -15,6 +15,7 @@ from lattice.core import (
     parse_vector,
 )
 from lattice.plotting_2d import create_2d_plot
+from lattice.plotting_3d import create_3d_plot
 from lattice.utils import format_array
 
 
@@ -72,6 +73,22 @@ def show_results(
         st.write(f"det(U) = `{round(float(np.linalg.det(unimodular_matrix)))}`")
 
 
+def get_default_basis_and_target(example_dimension: str) -> tuple[str, str]:
+    """
+    Returns default basis and target point for selected example.
+    """
+    if example_dimension == "2D":
+        return (
+            "[[2, 1],\n [0, 1]]",
+            "[2.3, 1.7]",
+        )
+
+    return (
+        "[[1, 0, 1],\n [0, 1, 1],\n [0, 0, 2]]",
+        "[1.4, 1.6, 2.2]",
+    )
+
+
 def main() -> None:
     st.set_page_config(
         page_title="LWE Lattice Visualizer",
@@ -85,10 +102,19 @@ def main() -> None:
     with st.sidebar:
         st.header("Input")
 
+        example_dimension = st.selectbox(
+            "Example dimension",
+            options=["2D", "3D"],
+            index=0,
+            help="This only changes the default example. You can still enter your own matrix.",
+        )
+
+        default_basis, default_target = get_default_basis_and_target(example_dimension)
+
         basis_text = st.text_area(
             "Basis matrix B",
-            value="[[2, 1],\n [0, 1]]",
-            height=120,
+            value=default_basis,
+            height=140,
             help="Basis vectors are columns of B. Example: [[2, 1], [0, 1]]",
         )
 
@@ -96,15 +122,15 @@ def main() -> None:
             "Coefficient range R for z ∈ [-R, R]ⁿ",
             min_value=1,
             max_value=10,
-            value=5,
+            value=2,
         )
 
         use_target = st.checkbox("Use target point for CVP", value=True)
 
         target_text = st.text_input(
             "Target point t",
-            value="[2.3, 1.7]",
-            help="Example for 2D: [2.3, 1.7]",
+            value=default_target,
+            help="Example for 2D: [2.3, 1.7], example for 3D: [1.4, 1.6, 2.2]",
             disabled=not use_target,
         )
 
@@ -196,9 +222,20 @@ def main() -> None:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        elif n > 2:
+        elif n == 3:
+            fig = create_3d_plot(
+                B=B,
+                coefficient_vectors=coefficient_vectors,
+                lattice_points=lattice_points,
+                shortest_vector=shortest_vector,
+                target=target,
+                closest_point=closest_point,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif n > 3:
             st.warning(
-                "Full geometric visualization is available only for 2D in this version. "
+                "Full geometric visualization is available only for 2D and 3D. "
                 "For higher dimensions, the app shows a 2D projection using the first two coordinates."
             )
 
