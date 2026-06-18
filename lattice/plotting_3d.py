@@ -4,6 +4,12 @@ import numpy as np
 import plotly.graph_objects as go
 
 
+PLOT_BG = "#0E1117"
+GRID_COLOR = "rgba(180, 200, 255, 0.18)"
+AXIS_COLOR = "rgba(255, 255, 255, 0.75)"
+POINT_COLOR = "rgba(235, 235, 235, 0.70)"
+
+
 def add_3d_vector(
     fig: go.Figure,
     vector: np.ndarray,
@@ -26,6 +32,7 @@ def add_3d_vector(
             marker=dict(size=4, color=color),
             text=["", label if label is not None else name],
             textposition="top center",
+            textfont=dict(color=color, size=13),
         )
     )
 
@@ -107,7 +114,7 @@ def add_fundamental_parallelepiped(
             start=vertices[i],
             end=vertices[j],
             name="Fundamental parallelepiped",
-            color="rgba(0, 100, 255, 0.9)",
+            color="rgba(0, 150, 255, 0.95)",
             width=5,
             showlegend=index == 0,
         )
@@ -128,8 +135,8 @@ def add_fundamental_parallelepiped(
             j=j_faces,
             k=k_faces,
             name="Fundamental volume",
-            opacity=0.15,
-            color="royalblue",
+            opacity=0.18,
+            color="#1E90FF",
             showlegend=True,
         )
     )
@@ -155,7 +162,12 @@ def create_3d_plot(
             z=lattice_points[:, 2],
             mode="markers",
             name="Lattice points",
-            marker=dict(size=4, color="lightgray", opacity=0.8),
+            marker=dict(
+                size=4,
+                color=POINT_COLOR,
+                opacity=0.8,
+                line=dict(width=0.5, color="rgba(255,255,255,0.25)"),
+            ),
             text=[
                 f"z = {z.tolist()}<br>Bz = {np.round(p, 4).tolist()}"
                 for z, p in zip(coefficient_vectors, lattice_points)
@@ -168,9 +180,9 @@ def create_3d_plot(
     b2 = B[:, 1]
     b3 = B[:, 2]
 
-    add_3d_vector(fig, b1, "Basis vector b₁", "blue", label="b₁")
-    add_3d_vector(fig, b2, "Basis vector b₂", "green", label="b₂")
-    add_3d_vector(fig, b3, "Basis vector b₃", "purple", label="b₃")
+    add_3d_vector(fig, b1, "Basis vector b₁", "#1E90FF", label="b₁")
+    add_3d_vector(fig, b2, "Basis vector b₂", "#00C853", label="b₂")
+    add_3d_vector(fig, b3, "Basis vector b₃", "#B388FF", label="b₃")
 
     add_fundamental_parallelepiped(fig, B)
 
@@ -179,7 +191,7 @@ def create_3d_plot(
             fig,
             shortest_vector,
             "Shortest vector",
-            "red",
+            "#FF1744",
             width=8,
             label="SVP",
         )
@@ -192,9 +204,10 @@ def create_3d_plot(
                 z=[target[2]],
                 mode="markers+text",
                 name="Target point t",
-                marker=dict(size=7, color="orange", symbol="x"),
+                marker=dict(size=7, color="#FFC400", symbol="x"),
                 text=["t"],
                 textposition="top center",
+                textfont=dict(color="#FFC400", size=13),
             )
         )
 
@@ -206,9 +219,10 @@ def create_3d_plot(
                 z=[closest_point[2]],
                 mode="markers+text",
                 name="Closest lattice point",
-                marker=dict(size=7, color="red", symbol="diamond"),
+                marker=dict(size=7, color="#FF1744", symbol="diamond"),
                 text=["closest"],
                 textposition="bottom center",
+                textfont=dict(color="#FF1744", size=13),
             )
         )
 
@@ -217,7 +231,7 @@ def create_3d_plot(
             start=target,
             end=closest_point,
             name="Distance to closest point",
-            color="orange",
+            color="#FFC400",
             width=6,
             dash="dot",
             showlegend=True,
@@ -226,20 +240,52 @@ def create_3d_plot(
     max_abs = max(1.0, float(np.max(np.abs(lattice_points))))
 
     fig.update_layout(
-        title="3D Lattice Visualization",
+        title=dict(text="3D Lattice Visualization", font=dict(color="white", size=18)),
         width=900,
         height=750,
-        template="plotly_white",
+        paper_bgcolor=PLOT_BG,
+        plot_bgcolor=PLOT_BG,
+        font=dict(color="white"),
+        showlegend=True,
+        legend=dict(
+            bgcolor="rgba(14, 17, 23, 0.75)",
+            bordercolor="rgba(255,255,255,0.15)",
+            borderwidth=1,
+        ),
         scene=dict(
+            bgcolor=PLOT_BG,
             xaxis_title="x",
             yaxis_title="y",
             zaxis_title="z",
             aspectmode="cube",
-            xaxis=dict(range=[-max_abs, max_abs]),
-            yaxis=dict(range=[-max_abs, max_abs]),
-            zaxis=dict(range=[-max_abs, max_abs]),
+            xaxis=dict(
+                range=[-max_abs, max_abs],
+                backgroundcolor=PLOT_BG,
+                gridcolor=GRID_COLOR,
+                zerolinecolor=AXIS_COLOR,
+                linecolor=AXIS_COLOR,
+                tickfont=dict(color="white"),
+                title=dict(font=dict(color="white")),
+            ),
+            yaxis=dict(
+                range=[-max_abs, max_abs],
+                backgroundcolor=PLOT_BG,
+                gridcolor=GRID_COLOR,
+                zerolinecolor=AXIS_COLOR,
+                linecolor=AXIS_COLOR,
+                tickfont=dict(color="white"),
+                title=dict(font=dict(color="white")),
+            ),
+            zaxis=dict(
+                range=[-max_abs, max_abs],
+                backgroundcolor=PLOT_BG,
+                gridcolor=GRID_COLOR,
+                zerolinecolor=AXIS_COLOR,
+                linecolor=AXIS_COLOR,
+                tickfont=dict(color="white"),
+                title=dict(font=dict(color="white")),
+            ),
         ),
-        showlegend=True,
     )
 
     return fig

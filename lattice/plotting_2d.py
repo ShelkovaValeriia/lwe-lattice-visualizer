@@ -4,6 +4,13 @@ import numpy as np
 import plotly.graph_objects as go
 
 
+PLOT_BG = "#0E1117"
+PAPER_BG = "#0E1117"
+GRID_COLOR = "rgba(180, 200, 255, 0.18)"
+AXIS_COLOR = "rgba(255, 255, 255, 0.75)"
+POINT_COLOR = "rgba(235, 235, 235, 0.85)"
+
+
 def add_2d_vector(
     fig: go.Figure,
     vector: np.ndarray,
@@ -31,6 +38,7 @@ def add_2d_vector(
             marker=dict(size=8, color=color),
             text=["", label if label is not None else name],
             textposition="top center",
+            textfont=dict(color=color, size=14),
         )
     )
 
@@ -56,7 +64,11 @@ def create_2d_plot(
             y=lattice_points[:, 1],
             mode="markers",
             name="Lattice points",
-            marker=dict(size=7, color="lightgray", line=dict(width=1, color="gray")),
+            marker=dict(
+                size=7,
+                color=POINT_COLOR,
+                line=dict(width=1, color="rgba(255,255,255,0.35)"),
+            ),
             text=[
                 f"z = {z.tolist()}<br>Bz = {np.round(p, 4).tolist()}"
                 for z, p in zip(coefficient_vectors, lattice_points)
@@ -78,13 +90,13 @@ def create_2d_plot(
             mode="lines",
             fill="toself",
             name="Fundamental parallelogram",
-            line=dict(color="rgba(0, 100, 255, 0.7)", width=2),
-            fillcolor="rgba(0, 100, 255, 0.15)",
+            line=dict(color="rgba(0, 150, 255, 0.95)", width=3),
+            fillcolor="rgba(0, 150, 255, 0.16)",
         )
     )
 
-    add_2d_vector(fig, b1, "Basis vector b₁", "blue", label="b₁")
-    add_2d_vector(fig, b2, "Basis vector b₂", "green", label="b₂")
+    add_2d_vector(fig, b1, "Basis vector b₁", "#1E90FF", label="b₁")
+    add_2d_vector(fig, b2, "Basis vector b₂", "#00C853", label="b₂")
 
     if reduced_basis is not None:
         r1 = reduced_basis[:, 0]
@@ -94,7 +106,7 @@ def create_2d_plot(
             fig,
             r1,
             "Reduced basis vector r₁",
-            "purple",
+            "#B388FF",
             width=3,
             dash="dash",
             label="r₁",
@@ -104,7 +116,7 @@ def create_2d_plot(
             fig,
             r2,
             "Reduced basis vector r₂",
-            "purple",
+            "#B388FF",
             width=3,
             dash="dash",
             label="r₂",
@@ -115,7 +127,7 @@ def create_2d_plot(
             fig,
             shortest_vector,
             "Shortest vector",
-            "red",
+            "#FF1744",
             width=5,
             label="SVP",
         )
@@ -127,9 +139,10 @@ def create_2d_plot(
                 y=[target[1]],
                 mode="markers+text",
                 name="Target point t",
-                marker=dict(size=13, color="orange", symbol="x"),
+                marker=dict(size=14, color="#FFC400", symbol="x"),
                 text=["t"],
                 textposition="top center",
+                textfont=dict(color="#FFC400", size=14),
             )
         )
 
@@ -140,9 +153,10 @@ def create_2d_plot(
                 y=[closest_point[1]],
                 mode="markers+text",
                 name="Closest lattice point",
-                marker=dict(size=13, color="red", symbol="diamond"),
+                marker=dict(size=13, color="#FF1744", symbol="diamond"),
                 text=["closest"],
                 textposition="bottom center",
+                textfont=dict(color="#FF1744", size=13),
             )
         )
 
@@ -152,22 +166,44 @@ def create_2d_plot(
                 y=[target[1], closest_point[1]],
                 mode="lines",
                 name="Distance to closest point",
-                line=dict(color="orange", width=3, dash="dot"),
+                line=dict(color="#FFC400", width=3, dash="dot"),
             )
         )
 
-    fig.add_hline(y=0, line_width=1, line_color="black", opacity=0.4)
-    fig.add_vline(x=0, line_width=1, line_color="black", opacity=0.4)
+    fig.add_hline(y=0, line_width=2, line_color=AXIS_COLOR, opacity=0.8)
+    fig.add_vline(x=0, line_width=2, line_color=AXIS_COLOR, opacity=0.8)
 
     fig.update_layout(
-        title=title,
+        title=dict(text=title, font=dict(color="white", size=18)),
         xaxis_title="x",
         yaxis_title="y",
         width=900,
         height=700,
         showlegend=True,
-        yaxis=dict(scaleanchor="x", scaleratio=1),
-        template="plotly_white",
+        paper_bgcolor=PAPER_BG,
+        plot_bgcolor=PLOT_BG,
+        font=dict(color="white"),
+        legend=dict(
+            bgcolor="rgba(14, 17, 23, 0.75)",
+            bordercolor="rgba(255,255,255,0.15)",
+            borderwidth=1,
+        ),
+        yaxis=dict(
+            scaleanchor="x",
+            scaleratio=1,
+            gridcolor=GRID_COLOR,
+            zerolinecolor=AXIS_COLOR,
+            linecolor=AXIS_COLOR,
+            tickfont=dict(color="white"),
+            title=dict(font=dict(color="white")),
+        ),
+        xaxis=dict(
+            gridcolor=GRID_COLOR,
+            zerolinecolor=AXIS_COLOR,
+            linecolor=AXIS_COLOR,
+            tickfont=dict(color="white"),
+            title=dict(font=dict(color="white")),
+        ),
     )
 
     return fig
