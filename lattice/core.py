@@ -69,27 +69,50 @@ def parse_vector(text: str, dimension: int) -> np.ndarray:
     return vector
 
 
-def generate_lattice_points(B: np.ndarray, radius: int) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Generates lattice points of the form v = Bz,
-    where z is an integer vector with coordinates in [-radius, radius].
-
-    Basis vectors are stored as columns of B.
-    """
-    n = B.shape[0]
-
-    coefficient_vectors = np.array(
-        list(itertools.product(range(-radius, radius + 1), repeat=n)),
-        dtype=int,
-    )
-
-    lattice_points = coefficient_vectors @ B.T
-
-    return coefficient_vectors, lattice_points
-
-
 def lattice_determinant(B: np.ndarray) -> float:
     """
     Returns |det(B)|.
     """
     return abs(float(np.linalg.det(B)))
+
+
+def estimate_coefficient_search_radius(B: np.ndarray, cube_limit: int) -> int:
+    """
+    Estimates how large the coefficient search range for z must be
+    so that all lattice points inside the coordinate cube [-L, L]^n
+    can be found.
+
+    Since z = B^{-1} x and ||x||_inf <= L,
+    we use ||z||_inf <= ||B^{-1}||_inf * L.
+    """
+    B_inv = np.linalg.inv(B)
+    bound = np.linalg.norm(B_inv, ord=np.inf) * cube_limit
+    return max(1, int(np.ceil(bound)) + 1)
+
+
+def generate_lattice_points_in_cube(
+    B: np.ndarray,
+    cube_limit: int,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Generates all lattice points x = Bz that lie inside the coordinate cube:
+        [-cube_limit, cube_limit]^n
+
+    Internally:
+    1. estimate a sufficient coefficient search radius for z,
+    2. generate candidate z vectors,
+    3. keep only those points whose coordinates are inside the cube.
+    """
+    n = B.shape[0]
+    search_radius = estimate_coefficient_search_radius(B, cube_limit)
+
+    coefficient_vectors = np.array(
+        list(itertools.product(range(-search_radius, search_radius + 1), repeat=n)),
+        dtype=int,
+    )
+
+    lattice_points = coefficient_vectors @ B.T
+
+    mask = np.all(np.abs(lattice_points) <= cube_limit + EPS, axis=1)
+
+    return coefficient_vectors[mask], lattice_points[mask]

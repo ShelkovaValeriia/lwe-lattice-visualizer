@@ -9,7 +9,8 @@ from lattice.algorithms import (
     gauss_reduce_2d,
 )
 from lattice.core import (
-    generate_lattice_points,
+    estimate_coefficient_search_radius,
+    generate_lattice_points_in_cube,
     lattice_determinant,
     parse_matrix,
     parse_vector,
@@ -22,6 +23,7 @@ from lattice.utils import format_array
 def show_results(
     B: np.ndarray,
     n: int,
+    cube_limit: int,
     total_points: int,
     det_value: float,
     shortest_coefficients: np.ndarray,
@@ -41,11 +43,18 @@ def show_results(
     st.subheader("Results")
 
     st.metric("Dimension", n)
-    st.metric("Number of lattice points", total_points)
+    st.metric("Lattice points inside cube", total_points)
     st.metric("|det(B)|", round(det_value, 6))
+
+    st.write(f"### Coordinate cube")
+    st.code(f"[-{cube_limit}, {cube_limit}]^{n}", language="text")
 
     st.write("### Basis matrix")
     st.code(format_array(B), language="text")
+
+    st.write("### Basis vectors")
+    for i in range(B.shape[1]):
+        st.write(f"b{i + 1} = `{format_array(B[:, i])}`")
 
     st.write("### Shortest vector / SVP")
     st.write(f"Coefficient vector z: `{shortest_coefficients.tolist()}`")
@@ -118,11 +127,12 @@ def main() -> None:
             help="Basis vectors are columns of B. Example: [[2, 1], [0, 1]]",
         )
 
-        radius = st.slider(
-            "Coefficient range R for z ∈ [-R, R]ⁿ",
+        cube_limit = st.slider(
+            "Coordinate cube limit L for each axis",
             min_value=1,
             max_value=10,
             value=2,
+            help="The app shows lattice points whose coordinates lie in [-L, L] on every axis.",
         )
 
         use_target = st.checkbox("Use target point for CVP", value=True)
@@ -148,16 +158,27 @@ def main() -> None:
     n = B.shape[0]
     det_value = lattice_determinant(B)
 
-    total_points = (2 * radius + 1) ** n
+    search_radius = estimate_coefficient_search_radius(B, cube_limit)
+    internal_candidates = (2 * search_radius + 1) ** n
 
-    if total_points > 200_000:
+    if internal_candidates > 200_000:
         st.error(
-            f"Too many lattice points: {(2 * radius + 1)}^{n} = {total_points}. "
-            "Please decrease the range or dimension."
+            f"Too many candidate coefficient vectors would be needed: "
+            f"(2·{search_radius}+1)^{n} = {internal_candidates}. "
+            f"Please decrease the cube limit or use a simpler basis."
         )
         st.stop()
 
-    coefficient_vectors, lattice_points = generate_lattice_points(B, radius)
+    coefficient_vectors, lattice_points = generate_lattice_points_in_cube(B, cube_limit)
+    total_points = len(lattice_points)
+
+    non_zero_mask = np.any(coefficient_vectors != 0, axis=1)
+    if not np.any(non_zero_mask):
+        st.error(
+            "Only the origin lies inside the selected cube. "
+            "Please increase the cube limit."
+        )
+        st.stop()
 
     shortest_coefficients, shortest_vector, shortest_length = find_shortest_vector(
         coefficient_vectors,
@@ -193,6 +214,7 @@ def main() -> None:
         show_results(
             B=B,
             n=n,
+            cube_limit=cube_limit,
             total_points=total_points,
             det_value=det_value,
             shortest_coefficients=shortest_coefficients,
@@ -265,9 +287,13 @@ def main() -> None:
 
     st.write("### Notes")
     st.write(
-        "The app uses brute force search inside the selected coefficient range. "
-        "This is suitable for educational examples with small 2D/3D lattices, "
-        "but it is not a professional SVP/CVP solver for high-dimensional cryptographic lattices."
+        "The visualization limit now defines a coordinate cube [-L, L]^n "
+        "in the ambient space. The app internally searches for coefficient vectors z, "
+        "constructs lattice points Bz, and keeps only those points whose coordinates lie inside the selected cube."
+    )
+    st.write(
+        "SVP and CVP are computed only among the lattice points inside the selected cube. "
+        "This is suitable for educational examples, but it is not a professional solver for high-dimensional lattices."
     )
 
 
