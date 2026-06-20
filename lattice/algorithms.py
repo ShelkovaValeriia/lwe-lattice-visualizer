@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -84,3 +84,96 @@ def gauss_reduce_2d(B: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
             changed = True
 
     return B_reduced, U
+
+
+def basis_score_2d(B: np.ndarray) -> float:
+    """
+    Computes a simple quality score for a 2D basis.
+
+    Smaller score means a more convenient basis:
+    - shorter vectors,
+    - more orthogonal vectors.
+    """
+    b1 = B[:, 0]
+    b2 = B[:, 1]
+
+    norm1 = np.linalg.norm(b1)
+    norm2 = np.linalg.norm(b2)
+
+    if norm1 == 0 or norm2 == 0:
+        return float("inf")
+
+    cosine = abs(float(np.dot(b1, b2)) / (norm1 * norm2))
+
+    return float(norm1 + norm2 + cosine * max(norm1, norm2))
+
+
+def generate_unimodular_matrices_2d(limit: int = 3) -> List[np.ndarray]:
+    """
+    Generates 2D integer unimodular matrices U with det(U) = ±1.
+
+    If B is a basis, then B' = B * U is another basis
+    of the same lattice.
+    """
+    matrices = []
+
+    for a in range(-limit, limit + 1):
+        for b in range(-limit, limit + 1):
+            for c in range(-limit, limit + 1):
+                for d in range(-limit, limit + 1):
+                    U = np.array([[a, b], [c, d]], dtype=int)
+                    det = round(float(np.linalg.det(U)))
+
+                    if abs(det) == 1:
+                        matrices.append(U)
+
+    return matrices
+
+
+def generate_basis_candidates_2d(
+    B: np.ndarray,
+    limit: int = 3,
+    max_candidates: int = 8,
+) -> Tuple[List[Dict], List[Dict]]:
+    """
+    Generates convenient and inconvenient bases for the same 2D lattice.
+
+    Each candidate has:
+    - basis: B' = B * U
+    - U: unimodular matrix
+    - score: quality score
+    """
+    if B.shape != (2, 2):
+        return [], []
+
+    candidates = []
+    seen = set()
+
+    for U in generate_unimodular_matrices_2d(limit):
+        new_basis = B @ U
+
+        key = tuple(np.round(new_basis.flatten(), 8))
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        score = basis_score_2d(new_basis)
+
+        candidates.append(
+            {
+                "basis": new_basis,
+                "U": U,
+                "score": score,
+                "max_vector_length": max(
+                    np.linalg.norm(new_basis[:, 0]),
+                    np.linalg.norm(new_basis[:, 1]),
+                ),
+            }
+        )
+
+    convenient = sorted(candidates, key=lambda item: item["score"])
+    inconvenient = sorted(candidates, key=lambda item: item["score"], reverse=True)
+
+    return convenient[:max_candidates], inconvenient[:max_candidates]

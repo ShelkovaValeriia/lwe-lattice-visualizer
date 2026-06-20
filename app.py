@@ -6,7 +6,7 @@ import streamlit as st
 from lattice.algorithms import (
     find_closest_point,
     find_shortest_vector,
-    gauss_reduce_2d,
+    generate_basis_candidates_2d,
 )
 from lattice.core import (
     estimate_coefficient_search_radius,
@@ -20,11 +20,18 @@ from lattice.plotting_3d import create_3d_plot
 from lattice.utils import format_array
 
 
+def show_basis_vectors(B: np.ndarray) -> None:
+    """
+    Shows basis vectors as columns of the basis matrix.
+    """
+    st.write("### Displayed basis vectors")
+
+    for i in range(B.shape[1]):
+        st.write(f"b{i + 1} = `{format_array(B[:, i])}`")
+
+
 def show_results(
-    B: np.ndarray,
-    n: int,
-    cube_limit: int,
-    total_points: int,
+    B_displayed: np.ndarray,
     det_value: float,
     shortest_coefficients: np.ndarray,
     shortest_vector: np.ndarray,
@@ -34,27 +41,29 @@ def show_results(
     closest_coefficients: Optional[np.ndarray],
     closest_point: Optional[np.ndarray],
     closest_distance: Optional[float],
-    reduced_basis: Optional[np.ndarray],
+    basis_mode: str,
     unimodular_matrix: Optional[np.ndarray],
 ) -> None:
     """
-    Shows numerical results in the left column.
+    Shows compact numerical results in the left column.
     """
     st.subheader("Results")
 
-    st.metric("Dimension", n)
-    st.metric("Lattice points inside cube", total_points)
     st.metric("|det(B)|", round(det_value, 6))
 
-    st.write(f"### Coordinate cube")
-    st.code(f"[-{cube_limit}, {cube_limit}]^{n}", language="text")
+    st.write("### Basis mode")
+    st.write(basis_mode)
 
-    st.write("### Basis matrix")
-    st.code(format_array(B), language="text")
+    show_basis_vectors(B_displayed)
 
-    st.write("### Basis vectors")
-    for i in range(B.shape[1]):
-        st.write(f"b{i + 1} = `{format_array(B[:, i])}`")
+    if unimodular_matrix is not None:
+        st.write("### Same lattice relation")
+        st.code("B_new = B · U", language="text")
+
+        st.write("Unimodular matrix U:")
+        st.code(str(unimodular_matrix.tolist()), language="text")
+
+        st.write(f"det(U) = `{round(float(np.linalg.det(unimodular_matrix)))}`")
 
     st.write("### Shortest vector / SVP")
     st.write(f"Coefficient vector z: `{shortest_coefficients.tolist()}`")
@@ -67,19 +76,6 @@ def show_results(
         st.write(f"Coefficient vector z: `{closest_coefficients.tolist()}`")
         st.write(f"Closest lattice point Bz: `{format_array(closest_point)}`")
         st.write(f"Distance: `{round(closest_distance, 6)}`")
-
-    if reduced_basis is not None and unimodular_matrix is not None:
-        st.write("### Reduced basis")
-        st.write("New basis:")
-        st.code(format_array(reduced_basis), language="text")
-
-        st.write("Unimodular matrix U:")
-        st.code(str(unimodular_matrix.tolist()), language="text")
-
-        st.write("Relation:")
-        st.code("B_reduced = B · U", language="text")
-
-        st.write(f"det(U) = `{round(float(np.linalg.det(unimodular_matrix)))}`")
 
 
 def get_default_basis_and_target(example_dimension: str) -> tuple[str, str]:
@@ -95,6 +91,79 @@ def get_default_basis_and_target(example_dimension: str) -> tuple[str, str]:
     return (
         "[[1, 0, 1],\n [0, 1, 1],\n [0, 0, 2]]",
         "[1.4, 1.6, 2.2]",
+    )
+
+
+def choose_displayed_basis(B: np.ndarray) -> tuple[np.ndarray, str, Optional[np.ndarray]]:
+    """
+    Lets the user choose which basis should be displayed.
+
+    All generated 2D bases define the same lattice as the input basis.
+    """
+    if B.shape != (2, 2):
+        return B, "Input basis", None
+
+    st.sidebar.write("---")
+    st.sidebar.subheader("Same lattice bases")
+
+    convenient_bases, inconvenient_bases = generate_basis_candidates_2d(
+        B,
+        limit=3,
+        max_candidates=6,
+    )
+
+    basis_mode = st.sidebar.selectbox(
+        "Displayed basis",
+        options=[
+            "Input basis",
+            "Convenient basis",
+            "Inconvenient basis",
+        ],
+        index=0,
+        help=(
+            "Different bases are generated as B_new = B · U, "
+            "where U is unimodular and det(U) = ±1. "
+            "Therefore the lattice stays the same."
+        ),
+    )
+
+    if basis_mode == "Input basis":
+        return B, "Input basis", None
+
+    if basis_mode == "Convenient basis":
+        options = convenient_bases
+        label = "Convenient basis"
+
+    else:
+        options = inconvenient_bases
+        label = "Inconvenient basis"
+
+    option_labels = []
+
+    for index, item in enumerate(options):
+        basis = item["basis"]
+        score = item["score"]
+
+        b1_len = np.linalg.norm(basis[:, 0])
+        b2_len = np.linalg.norm(basis[:, 1])
+
+        option_labels.append(
+            f"{index + 1}. score={score:.3f}, |b1|={b1_len:.3f}, |b2|={b2_len:.3f}"
+        )
+
+    selected_index = st.sidebar.selectbox(
+        "Candidate",
+        options=list(range(len(option_labels))),
+        format_func=lambda i: option_labels[i],
+        index=0,
+    )
+
+    selected = options[selected_index]
+
+    return (
+        selected["basis"],
+        label,
+        selected["U"],
     )
 
 
@@ -144,21 +213,18 @@ def main() -> None:
             disabled=not use_target,
         )
 
-        show_reduced_basis = st.checkbox(
-            "Show reduced basis for 2D",
-            value=True,
-        )
-
     try:
-        B = parse_matrix(basis_text)
+        B_input = parse_matrix(basis_text)
     except ValueError as error:
         st.error(str(error))
         st.stop()
 
-    n = B.shape[0]
-    det_value = lattice_determinant(B)
+    B_displayed, basis_mode, unimodular_matrix = choose_displayed_basis(B_input)
 
-    search_radius = estimate_coefficient_search_radius(B, cube_limit)
+    n = B_displayed.shape[0]
+    det_value = lattice_determinant(B_displayed)
+
+    search_radius = estimate_coefficient_search_radius(B_displayed, cube_limit)
     internal_candidates = (2 * search_radius + 1) ** n
 
     if internal_candidates > 200_000:
@@ -169,10 +235,15 @@ def main() -> None:
         )
         st.stop()
 
-    coefficient_vectors, lattice_points = generate_lattice_points_in_cube(B, cube_limit)
+    coefficient_vectors, lattice_points = generate_lattice_points_in_cube(
+        B_displayed,
+        cube_limit,
+    )
+
     total_points = len(lattice_points)
 
     non_zero_mask = np.any(coefficient_vectors != 0, axis=1)
+
     if not np.any(non_zero_mask):
         st.error(
             "Only the origin lies inside the selected cube. "
@@ -202,20 +273,11 @@ def main() -> None:
             st.error(str(error))
             st.stop()
 
-    reduced_basis = None
-    unimodular_matrix = None
-
-    if n == 2 and show_reduced_basis:
-        reduced_basis, unimodular_matrix = gauss_reduce_2d(B)
-
     left_col, right_col = st.columns([1, 2])
 
     with left_col:
         show_results(
-            B=B,
-            n=n,
-            cube_limit=cube_limit,
-            total_points=total_points,
+            B_displayed=B_displayed,
             det_value=det_value,
             shortest_coefficients=shortest_coefficients,
             shortest_vector=shortest_vector,
@@ -225,7 +287,7 @@ def main() -> None:
             closest_coefficients=closest_coefficients,
             closest_point=closest_point,
             closest_distance=closest_distance,
-            reduced_basis=reduced_basis,
+            basis_mode=basis_mode,
             unimodular_matrix=unimodular_matrix,
         )
 
@@ -234,25 +296,27 @@ def main() -> None:
 
         if n == 2:
             fig = create_2d_plot(
-                B=B,
+                B=B_displayed,
                 coefficient_vectors=coefficient_vectors,
                 lattice_points=lattice_points,
                 shortest_vector=shortest_vector,
                 target=target,
                 closest_point=closest_point,
-                reduced_basis=reduced_basis,
+                reduced_basis=None,
             )
+
             st.plotly_chart(fig, use_container_width=True)
 
         elif n == 3:
             fig = create_3d_plot(
-                B=B,
+                B=B_displayed,
                 coefficient_vectors=coefficient_vectors,
                 lattice_points=lattice_points,
                 shortest_vector=shortest_vector,
                 target=target,
                 closest_point=closest_point,
             )
+
             st.plotly_chart(fig, use_container_width=True)
 
         elif n > 3:
@@ -262,7 +326,7 @@ def main() -> None:
             )
 
             projected_points = lattice_points[:, :2]
-            projected_B = B[:2, :2]
+            projected_B = B_displayed[:2, :2]
 
             projected_shortest = shortest_vector[:2]
             projected_target = target[:2] if target is not None else None
@@ -278,6 +342,7 @@ def main() -> None:
                 reduced_basis=None,
                 title="2D Projection of the Lattice",
             )
+
             st.plotly_chart(fig, use_container_width=True)
 
         else:
@@ -287,13 +352,15 @@ def main() -> None:
 
     st.write("### Notes")
     st.write(
-        "The visualization limit now defines a coordinate cube [-L, L]^n "
-        "in the ambient space. The app internally searches for coefficient vectors z, "
-        "constructs lattice points Bz, and keeps only those points whose coordinates lie inside the selected cube."
+        "The visualization limit defines a coordinate cube [-L, L]^n in the ambient space. "
+        "The app internally searches for coefficient vectors z, constructs lattice points Bz, "
+        "and keeps only those points whose coordinates lie inside the selected cube."
     )
+
     st.write(
-        "SVP and CVP are computed only among the lattice points inside the selected cube. "
-        "This is suitable for educational examples, but it is not a professional solver for high-dimensional lattices."
+        "For 2D lattices, the app can display different bases of the same lattice. "
+        "A new basis is constructed as B_new = B · U, where U is a unimodular integer matrix "
+        "with det(U) = ±1."
     )
 
 
