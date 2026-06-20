@@ -15,6 +15,7 @@ from lattice.core import (
     parse_matrix,
     parse_vector,
 )
+from lattice.examples import EXAMPLES_BY_DIMENSION
 from lattice.plotting_2d import create_2d_plot
 from lattice.plotting_3d import create_3d_plot
 from lattice.utils import format_array
@@ -28,6 +29,36 @@ def show_basis_vectors(B: np.ndarray) -> None:
 
     for i in range(B.shape[1]):
         st.write(f"b{i + 1} = `{format_array(B[:, i])}`")
+
+
+def get_fundamental_domain_label(n: int) -> str:
+    """
+    Returns a readable name for the determinant interpretation.
+    """
+    if n == 2:
+        return "Fundamental area"
+
+    if n == 3:
+        return "Fundamental volume"
+
+    return "Fundamental domain volume"
+
+
+def show_same_lattice_indicator(unimodular_matrix: Optional[np.ndarray]) -> None:
+    """
+    Shows whether the displayed basis defines the same lattice.
+    """
+    if unimodular_matrix is None:
+        st.info("Input basis is displayed.")
+
+        return
+
+    det_u = round(float(np.linalg.det(unimodular_matrix)))
+
+    if abs(det_u) == 1:
+        st.success(f"Same lattice confirmed: det(U) = {det_u}")
+    else:
+        st.error(f"Warning: det(U) = {det_u}, so the lattice may be different.")
 
 
 def show_results(
@@ -47,12 +78,16 @@ def show_results(
     """
     Shows compact numerical results in the left column.
     """
+    n = B_displayed.shape[0]
+
     st.subheader("Results")
 
-    st.metric("|det(B)|", round(det_value, 6))
+    st.metric(get_fundamental_domain_label(n), round(det_value, 6))
 
     st.write("### Basis mode")
     st.write(basis_mode)
+
+    show_same_lattice_indicator(unimodular_matrix)
 
     show_basis_vectors(B_displayed)
 
@@ -62,8 +97,6 @@ def show_results(
 
         st.write("Unimodular matrix U:")
         st.code(str(unimodular_matrix.tolist()), language="text")
-
-        st.write(f"det(U) = `{round(float(np.linalg.det(unimodular_matrix)))}`")
 
     st.write("### Shortest vector / SVP")
     st.write(f"Coefficient vector z: `{shortest_coefficients.tolist()}`")
@@ -76,22 +109,6 @@ def show_results(
         st.write(f"Coefficient vector z: `{closest_coefficients.tolist()}`")
         st.write(f"Closest lattice point Bz: `{format_array(closest_point)}`")
         st.write(f"Distance: `{round(closest_distance, 6)}`")
-
-
-def get_default_basis_and_target(example_dimension: str) -> tuple[str, str]:
-    """
-    Returns default basis and target point for selected example.
-    """
-    if example_dimension == "2D":
-        return (
-            "[[2, 1],\n [0, 1]]",
-            "[2.3, 1.7]",
-        )
-
-    return (
-        "[[1, 0, 1],\n [0, 1, 1],\n [0, 0, 2]]",
-        "[1.4, 1.6, 2.2]",
-    )
 
 
 def choose_displayed_basis(B: np.ndarray) -> tuple[np.ndarray, str, Optional[np.ndarray]]:
@@ -177,6 +194,40 @@ def choose_displayed_basis(B: np.ndarray) -> tuple[np.ndarray, str, Optional[np.
     )
 
 
+def show_explanation_box(n: int) -> None:
+    """
+    Shows a short educational explanation of the visualization.
+    """
+    with st.expander("What is shown?"):
+        st.write(
+            "The app constructs lattice points in the form `Bz`, "
+            "where `B` is the basis matrix and `z` is an integer vector."
+        )
+
+        st.write(
+            "Basis vectors are interpreted as the columns of the matrix `B`."
+        )
+
+        st.write(
+            "The determinant `|det(B)|` represents the size of the fundamental domain. "
+            "In 2D it is the area of the fundamental parallelogram. "
+            "In 3D it is the volume of the fundamental parallelepiped."
+        )
+
+        if n in [2, 3]:
+            st.write(
+                "Different displayed bases are generated as `B_new = B · U`, "
+                "where `U` is an integer unimodular matrix with `det(U) = ±1`. "
+                "Therefore the lattice itself stays unchanged."
+            )
+
+        st.write(
+            "SVP and CVP are computed by brute force among the lattice points "
+            "inside the selected coordinate cube. This is suitable for small "
+            "educational examples, not for high-dimensional cryptographic lattices."
+        )
+
+
 def main() -> None:
     st.set_page_config(
         page_title="LWE Lattice Visualizer",
@@ -194,14 +245,26 @@ def main() -> None:
             "Example dimension",
             options=["2D", "3D"],
             index=0,
-            help="This only changes the default example. You can still enter your own matrix.",
+            help="Choose whether to work with a 2D or 3D lattice.",
         )
 
-        default_basis, default_target = get_default_basis_and_target(example_dimension)
+        st.write("---")
+        st.subheader("Preset examples")
+
+        examples_for_dimension = EXAMPLES_BY_DIMENSION[example_dimension]
+
+        selected_example_name = st.selectbox(
+            "Choose example",
+            options=list(examples_for_dimension.keys()),
+            index=1 if example_dimension == "2D" else 0,
+            help="Choose a prepared example. You can still edit the matrix manually.",
+        )
+
+        selected_example = examples_for_dimension[selected_example_name]
 
         basis_text = st.text_area(
             "Basis matrix B",
-            value=default_basis,
+            value=selected_example["basis"],
             height=140,
             help="Basis vectors are columns of B. Example: [[2, 1], [0, 1]]",
         )
@@ -210,7 +273,7 @@ def main() -> None:
             "Coordinate cube limit L for each axis",
             min_value=1,
             max_value=10,
-            value=2,
+            value=selected_example["cube_limit"],
             help="The app shows lattice points whose coordinates lie in [-L, L] on every axis.",
         )
 
@@ -218,7 +281,7 @@ def main() -> None:
 
         target_text = st.text_input(
             "Target point t",
-            value=default_target,
+            value=selected_example["target"],
             help="Example for 2D: [2.3, 1.7], example for 3D: [1.4, 1.6, 2.2]",
             disabled=not use_target,
         )
@@ -249,8 +312,6 @@ def main() -> None:
         B_displayed,
         cube_limit,
     )
-
-    total_points = len(lattice_points)
 
     non_zero_mask = np.any(coefficient_vectors != 0, axis=1)
 
@@ -360,18 +421,7 @@ def main() -> None:
 
     st.divider()
 
-    st.write("### Notes")
-    st.write(
-        "The visualization limit defines a coordinate cube [-L, L]^n in the ambient space. "
-        "The app internally searches for coefficient vectors z, constructs lattice points Bz, "
-        "and keeps only those points whose coordinates lie inside the selected cube."
-    )
-
-    st.write(
-        "For 2D lattices, the app can display different bases of the same lattice. "
-        "A new basis is constructed as B_new = B · U, where U is a unimodular integer matrix "
-        "with det(U) = ±1."
-    )
+    show_explanation_box(n)
 
 
 if __name__ == "__main__":
