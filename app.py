@@ -6,7 +6,7 @@ import streamlit as st
 from lattice.algorithms import (
     find_closest_point,
     find_shortest_vector,
-    generate_basis_candidates_2d,
+    generate_basis_candidates,
 )
 from lattice.core import (
     estimate_coefficient_search_radius,
@@ -98,15 +98,15 @@ def choose_displayed_basis(B: np.ndarray) -> tuple[np.ndarray, str, Optional[np.
     """
     Lets the user choose which basis should be displayed.
 
-    All generated 2D bases define the same lattice as the input basis.
+    For 2D and 3D, generated bases define the same lattice as the input basis.
     """
-    if B.shape != (2, 2):
+    if B.shape not in [(2, 2), (3, 3)]:
         return B, "Input basis", None
 
     st.sidebar.write("---")
     st.sidebar.subheader("Same lattice bases")
 
-    convenient_bases, inconvenient_bases = generate_basis_candidates_2d(
+    convenient_bases, inconvenient_bases = generate_basis_candidates(
         B,
         limit=3,
         max_candidates=6,
@@ -133,10 +133,13 @@ def choose_displayed_basis(B: np.ndarray) -> tuple[np.ndarray, str, Optional[np.
     if basis_mode == "Convenient basis":
         options = convenient_bases
         label = "Convenient basis"
-
     else:
         options = inconvenient_bases
         label = "Inconvenient basis"
+
+    if not options:
+        st.sidebar.warning("No alternative basis candidates were generated.")
+        return B, "Input basis", None
 
     option_labels = []
 
@@ -144,11 +147,18 @@ def choose_displayed_basis(B: np.ndarray) -> tuple[np.ndarray, str, Optional[np.
         basis = item["basis"]
         score = item["score"]
 
-        b1_len = np.linalg.norm(basis[:, 0])
-        b2_len = np.linalg.norm(basis[:, 1])
+        lengths = [
+            np.linalg.norm(basis[:, i])
+            for i in range(basis.shape[1])
+        ]
+
+        lengths_text = ", ".join(
+            f"|b{i + 1}|={length:.3f}"
+            for i, length in enumerate(lengths)
+        )
 
         option_labels.append(
-            f"{index + 1}. score={score:.3f}, |b1|={b1_len:.3f}, |b2|={b2_len:.3f}"
+            f"{index + 1}. score={score:.3f}, {lengths_text}"
         )
 
     selected_index = st.sidebar.selectbox(
