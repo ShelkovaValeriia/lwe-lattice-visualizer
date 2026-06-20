@@ -10,6 +10,9 @@ AXIS_COLOR = "rgba(255, 255, 255, 0.75)"
 POINT_COLOR = "rgba(235, 235, 235, 0.70)"
 
 
+HIGHLIGHT_MODES = {"All", "SVP", "CVP", "Basis", "None"}
+
+
 def add_3d_vector(
     fig: go.Figure,
     vector: np.ndarray,
@@ -74,7 +77,6 @@ def add_coordinate_axes(fig: go.Figure, axis_limit: float) -> None:
     """
     axis_style = "rgba(255, 255, 255, 0.85)"
 
-    # X axis
     fig.add_trace(
         go.Scatter3d(
             x=[-axis_limit, axis_limit],
@@ -90,7 +92,6 @@ def add_coordinate_axes(fig: go.Figure, axis_limit: float) -> None:
         )
     )
 
-    # Y axis
     fig.add_trace(
         go.Scatter3d(
             x=[0, 0],
@@ -106,7 +107,6 @@ def add_coordinate_axes(fig: go.Figure, axis_limit: float) -> None:
         )
     )
 
-    # Z axis
     fig.add_trace(
         go.Scatter3d(
             x=[0, 0],
@@ -122,7 +122,6 @@ def add_coordinate_axes(fig: go.Figure, axis_limit: float) -> None:
         )
     )
 
-    # Origin
     fig.add_trace(
         go.Scatter3d(
             x=[0],
@@ -192,7 +191,6 @@ def add_fundamental_parallelepiped(
 
     mesh_vertices = np.array(vertices)
 
-    # Six faces of the parallelepiped, each split into two triangles.
     i_faces = [0, 0, 0, 0, 1, 1, 2, 2, 0, 0, 3, 3]
     j_faces = [1, 4, 1, 5, 4, 7, 4, 7, 2, 6, 5, 7]
     k_faces = [4, 2, 5, 3, 7, 5, 7, 6, 6, 3, 7, 6]
@@ -220,10 +218,19 @@ def create_3d_plot(
     shortest_vector: Optional[np.ndarray] = None,
     target: Optional[np.ndarray] = None,
     closest_point: Optional[np.ndarray] = None,
+    title: str = "3D Lattice Visualization",
+    highlight_mode: str = "All",
 ) -> go.Figure:
     """
     Creates a 3D Plotly visualization of the lattice.
     """
+    if highlight_mode not in HIGHLIGHT_MODES:
+        highlight_mode = "All"
+
+    show_basis = highlight_mode in ["All", "Basis"]
+    show_svp = highlight_mode in ["All", "SVP"]
+    show_cvp = highlight_mode in ["All", "CVP"]
+
     fig = go.Figure()
 
     fig.add_trace(
@@ -251,13 +258,14 @@ def create_3d_plot(
     b2 = B[:, 1]
     b3 = B[:, 2]
 
-    add_3d_vector(fig, b1, "Basis vector b₁", "#1E90FF", label="b₁")
-    add_3d_vector(fig, b2, "Basis vector b₂", "#00C853", label="b₂")
-    add_3d_vector(fig, b3, "Basis vector b₃", "#B388FF", label="b₃")
+    if show_basis:
+        add_3d_vector(fig, b1, "Basis vector b₁", "#1E90FF", label="b₁")
+        add_3d_vector(fig, b2, "Basis vector b₂", "#00C853", label="b₂")
+        add_3d_vector(fig, b3, "Basis vector b₃", "#B388FF", label="b₃")
 
-    add_fundamental_parallelepiped(fig, B)
+        add_fundamental_parallelepiped(fig, B)
 
-    if shortest_vector is not None:
+    if show_svp and shortest_vector is not None:
         add_3d_vector(
             fig,
             shortest_vector,
@@ -267,7 +275,7 @@ def create_3d_plot(
             label="SVP",
         )
 
-    if target is not None:
+    if show_cvp and target is not None:
         fig.add_trace(
             go.Scatter3d(
                 x=[target[0]],
@@ -282,7 +290,7 @@ def create_3d_plot(
             )
         )
 
-    if target is not None and closest_point is not None:
+    if show_cvp and target is not None and closest_point is not None:
         fig.add_trace(
             go.Scatter3d(
                 x=[closest_point[0]],
@@ -312,7 +320,7 @@ def create_3d_plot(
     add_coordinate_axes(fig, max_abs)
 
     fig.update_layout(
-        title=dict(text="3D Lattice Visualization", font=dict(color="white", size=18)),
+        title=dict(text=title, font=dict(color="white", size=18)),
         width=900,
         height=750,
         paper_bgcolor=PLOT_BG,

@@ -11,6 +11,9 @@ AXIS_COLOR = "rgba(255, 255, 255, 0.75)"
 POINT_COLOR = "rgba(235, 235, 235, 0.85)"
 
 
+HIGHLIGHT_MODES = {"All", "SVP", "CVP", "Basis", "None"}
+
+
 def add_2d_vector(
     fig: go.Figure,
     vector: np.ndarray,
@@ -52,10 +55,18 @@ def create_2d_plot(
     closest_point: Optional[np.ndarray] = None,
     reduced_basis: Optional[np.ndarray] = None,
     title: str = "2D Lattice Visualization",
+    highlight_mode: str = "All",
 ) -> go.Figure:
     """
     Creates a 2D Plotly visualization of the lattice.
     """
+    if highlight_mode not in HIGHLIGHT_MODES:
+        highlight_mode = "All"
+
+    show_basis = highlight_mode in ["All", "Basis"]
+    show_svp = highlight_mode in ["All", "SVP"]
+    show_cvp = highlight_mode in ["All", "CVP"]
+
     fig = go.Figure()
 
     fig.add_trace(
@@ -80,25 +91,26 @@ def create_2d_plot(
     b1 = B[:, 0]
     b2 = B[:, 1]
 
-    parallelogram_x = [0, b1[0], b1[0] + b2[0], b2[0], 0]
-    parallelogram_y = [0, b1[1], b1[1] + b2[1], b2[1], 0]
+    if show_basis:
+        parallelogram_x = [0, b1[0], b1[0] + b2[0], b2[0], 0]
+        parallelogram_y = [0, b1[1], b1[1] + b2[1], b2[1], 0]
 
-    fig.add_trace(
-        go.Scatter(
-            x=parallelogram_x,
-            y=parallelogram_y,
-            mode="lines",
-            fill="toself",
-            name="Fundamental parallelogram",
-            line=dict(color="rgba(0, 150, 255, 0.95)", width=3),
-            fillcolor="rgba(0, 150, 255, 0.16)",
+        fig.add_trace(
+            go.Scatter(
+                x=parallelogram_x,
+                y=parallelogram_y,
+                mode="lines",
+                fill="toself",
+                name="Fundamental parallelogram",
+                line=dict(color="rgba(0, 150, 255, 0.95)", width=3),
+                fillcolor="rgba(0, 150, 255, 0.16)",
+            )
         )
-    )
 
-    add_2d_vector(fig, b1, "Basis vector b₁", "#1E90FF", label="b₁")
-    add_2d_vector(fig, b2, "Basis vector b₂", "#00C853", label="b₂")
+        add_2d_vector(fig, b1, "Basis vector b₁", "#1E90FF", label="b₁")
+        add_2d_vector(fig, b2, "Basis vector b₂", "#00C853", label="b₂")
 
-    if reduced_basis is not None:
+    if show_basis and reduced_basis is not None:
         r1 = reduced_basis[:, 0]
         r2 = reduced_basis[:, 1]
 
@@ -122,7 +134,7 @@ def create_2d_plot(
             label="r₂",
         )
 
-    if shortest_vector is not None:
+    if show_svp and shortest_vector is not None:
         add_2d_vector(
             fig,
             shortest_vector,
@@ -132,7 +144,7 @@ def create_2d_plot(
             label="SVP",
         )
 
-    if target is not None:
+    if show_cvp and target is not None:
         fig.add_trace(
             go.Scatter(
                 x=[target[0]],
@@ -146,7 +158,7 @@ def create_2d_plot(
             )
         )
 
-    if target is not None and closest_point is not None:
+    if show_cvp and target is not None and closest_point is not None:
         fig.add_trace(
             go.Scatter(
                 x=[closest_point[0]],

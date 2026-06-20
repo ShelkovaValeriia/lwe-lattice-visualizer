@@ -286,6 +286,19 @@ def main() -> None:
             disabled=not use_target,
         )
 
+        st.write("---")
+        st.subheader("Plot display")
+
+        highlight_mode = st.selectbox(
+            "Highlight mode",
+            options=["All", "SVP", "CVP", "Basis", "None"],
+            index=0,
+            help=(
+                "Choose which additional elements should be highlighted on the plot. "
+                "Lattice points are always visible."
+            ),
+        )
+
     try:
         B_input = parse_matrix(basis_text)
     except ValueError as error:
@@ -374,6 +387,7 @@ def main() -> None:
                 target=target,
                 closest_point=closest_point,
                 reduced_basis=None,
+                highlight_mode=highlight_mode,
             )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -386,6 +400,7 @@ def main() -> None:
                 shortest_vector=shortest_vector,
                 target=target,
                 closest_point=closest_point,
+                highlight_mode=highlight_mode,
             )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -412,6 +427,7 @@ def main() -> None:
                 closest_point=projected_closest,
                 reduced_basis=None,
                 title="2D Projection of the Lattice",
+                highlight_mode=highlight_mode,
             )
 
             st.plotly_chart(fig, use_container_width=True)
