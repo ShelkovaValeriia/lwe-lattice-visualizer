@@ -7,7 +7,7 @@ Educational Streamlit application for visualizing small 2D and 3D lattices.
 Clone the repository:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/lwe-lattice-visualizer.git
+git clone https://github.com/ShelkovaValeriia/lwe-lattice-visualizer.git
 cd lwe-lattice-visualizer
 ```
 
