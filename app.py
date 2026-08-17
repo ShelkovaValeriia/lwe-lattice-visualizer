@@ -14,6 +14,7 @@ from lattice.core import (
     parse_matrix,
     parse_vector,
 )
+from lattice.modular import is_prime
 from lattice.plotting_2d import create_2d_plot
 from lattice.styles import apply_page_style
 from lattice.ui_controls import (
@@ -21,7 +22,11 @@ from lattice.ui_controls import (
     show_normal_visualization_controls,
 )
 from lattice.ui_results import show_explanation_box, show_results
-from lattice.ui_sidebar import show_sidebar
+from lattice.ui_sidebar import (
+    show_modular_sidebar,
+    show_sidebar,
+    show_visualization_mode,
+)
 from lattice.visualization import (
     show_comparison_visualization,
     show_single_visualization,
@@ -62,6 +67,67 @@ def main() -> None:
 
     st.title("🔷 Lattice Visualizer")
     st.caption("Educational visualization of small lattices for SVP and CVP examples.")
+
+    visualization_mode = show_visualization_mode()
+
+    if visualization_mode == "Modular lattice":
+        basis_text, modulus, residue_representation = show_modular_sidebar()
+
+        st.subheader("Modular lattice")
+        st.caption(
+            "3D integer lattice visualization modulo a prime q. "
+            "This step connects the new modular input controls before point generation is added."
+        )
+
+        if not is_prime(modulus):
+            st.warning(
+                "Choose a prime modulus q in the sidebar. "
+                "You can use one of the suggested neighboring primes."
+            )
+            st.stop()
+
+        try:
+            B_modular = parse_matrix(basis_text)
+        except ValueError as error:
+            st.error(str(error))
+            st.stop()
+
+        if B_modular.shape != (3, 3):
+            st.error("Modular mode currently requires a 3×3 basis matrix B.")
+            st.stop()
+
+        if not np.allclose(B_modular, np.round(B_modular)):
+            st.error("Modular mode requires integer entries in the basis matrix B.")
+            st.stop()
+
+        B_modular = np.round(B_modular).astype(int)
+
+        modulus_col, representation_col = st.columns(2)
+
+        with modulus_col:
+            st.metric("Prime modulus q", modulus)
+
+        with representation_col:
+            st.metric("Residue representation", residue_representation)
+
+        st.markdown("**Integer basis matrix B**")
+        st.code(np.array2string(B_modular), language="text")
+
+        if residue_representation == "Centered":
+            if modulus == 2:
+                residue_description = "[-1, 0]"
+            else:
+                half = modulus // 2
+                residue_description = f"[-{half}, ..., {half}]"
+        else:
+            residue_description = f"[0, ..., {modulus - 1}]"
+
+        st.info(
+            f"The modular controls are connected successfully. "
+            f"The 3D plot will display residues as {residue_description}. "
+            "In the next step, the app will generate points Bz mod q."
+        )
+        st.stop()
 
     (
         _example_dimension,
