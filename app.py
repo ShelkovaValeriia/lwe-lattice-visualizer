@@ -14,8 +14,15 @@ from lattice.core import (
     parse_matrix,
     parse_vector,
 )
-from lattice.modular import is_prime
+from lattice.modular import (
+    determinant_mod_q,
+    generate_modular_lattice_points,
+    is_invertible_mod_q,
+    is_prime,
+    summarize_unique_modular_points,
+)
 from lattice.plotting_2d import create_2d_plot
+from lattice.plotting_modular_3d import create_modular_3d_plot
 from lattice.styles import apply_page_style
 from lattice.ui_controls import (
     show_comparison_visualization_controls,
@@ -38,7 +45,7 @@ def get_lattice_data_for_basis(
     cube_limit: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Generates lattice points for a selected basis.
+    Generate lattice points for a selected basis.
     """
     search_radius = estimate_coefficient_search_radius(B, cube_limit)
     internal_candidates = (2 * search_radius + 1) ** B.shape[0]
@@ -66,17 +73,24 @@ def main() -> None:
     apply_page_style()
 
     st.title("🔷 Lattice Visualizer")
-    st.caption("Educational visualization of small lattices for SVP and CVP examples.")
+    st.caption(
+        "Educational visualization of classical and modular lattice structures."
+    )
 
     visualization_mode = show_visualization_mode()
 
     if visualization_mode == "Modular lattice":
-        basis_text, modulus, residue_representation = show_modular_sidebar()
+        (
+            basis_text,
+            modulus,
+            residue_representation,
+            coefficient_limit,
+        ) = show_modular_sidebar()
 
         st.subheader("Modular lattice")
         st.caption(
-            "3D integer lattice visualization modulo a prime q. "
-            "This step connects the new modular input controls before point generation is added."
+            "Generate integer vectors z, compute Bz modulo a prime q, "
+            "and display the resulting residues in 3D."
         )
 
         if not is_prime(modulus):
@@ -84,50 +98,115 @@ def main() -> None:
                 "Choose a prime modulus q in the sidebar. "
                 "You can use one of the suggested neighboring primes."
             )
-            st.stop()
+            return
 
         try:
             B_modular = parse_matrix(basis_text)
         except ValueError as error:
             st.error(str(error))
-            st.stop()
+            return
 
         if B_modular.shape != (3, 3):
             st.error("Modular mode currently requires a 3×3 basis matrix B.")
-            st.stop()
+            return
 
         if not np.allclose(B_modular, np.round(B_modular)):
             st.error("Modular mode requires integer entries in the basis matrix B.")
-            st.stop()
+            return
 
         B_modular = np.round(B_modular).astype(int)
+        centered = residue_representation == "Centered"
 
-        modulus_col, representation_col = st.columns(2)
+        (
+            coefficient_vectors,
+            standard_points,
+            display_points,
+        ) = generate_modular_lattice_points(
+            B=B_modular,
+            modulus=modulus,
+            coefficient_limit=coefficient_limit,
+            centered=centered,
+        )
 
-        with modulus_col:
+        (
+            unique_display_points,
+            unique_standard_points,
+            representative_coefficients,
+            multiplicities,
+        ) = summarize_unique_modular_points(
+            coefficient_vectors=coefficient_vectors,
+            standard_points=standard_points,
+            display_points=display_points,
+        )
+
+        determinant_modulus = determinant_mod_q(B_modular, modulus)
+        invertible_modulus = is_invertible_mod_q(B_modular, modulus)
+
+        metric_columns = st.columns(4)
+
+        with metric_columns[0]:
             st.metric("Prime modulus q", modulus)
 
-        with representation_col:
-            st.metric("Residue representation", residue_representation)
+        with metric_columns[1]:
+            st.metric("Generated z vectors", len(coefficient_vectors))
+
+        with metric_columns[2]:
+            st.metric("Unique residues", len(unique_display_points))
+
+        with metric_columns[3]:
+            st.metric("det(B) mod q", determinant_modulus)
+
+        if invertible_modulus:
+            st.success(
+                f"det(B) mod {modulus} = {determinant_modulus} ≠ 0, "
+                "so B is invertible modulo q."
+            )
+        else:
+            st.warning(
+                f"det(B) mod {modulus} = 0, so B is not invertible modulo q. "
+                "Different coefficient classes can collapse to the same residue."
+            )
+
+        collapsed_mappings = len(coefficient_vectors) - len(unique_display_points)
+
+        if collapsed_mappings > 0:
+            st.info(
+                f"{collapsed_mappings} generated coefficient vectors map to residues "
+                "that are already produced by other vectors. Hover over larger points "
+                "to see their multiplicity."
+            )
 
         st.markdown("**Integer basis matrix B**")
         st.code(np.array2string(B_modular), language="text")
 
-        if residue_representation == "Centered":
-            if modulus == 2:
-                residue_description = "[-1, 0]"
-            else:
-                half = modulus // 2
-                residue_description = f"[-{half}, ..., {half}]"
-        else:
-            residue_description = f"[0, ..., {modulus - 1}]"
-
-        st.info(
-            f"The modular controls are connected successfully. "
-            f"The 3D plot will display residues as {residue_description}. "
-            "In the next step, the app will generate points Bz mod q."
+        figure = create_modular_3d_plot(
+            display_points=unique_display_points,
+            standard_points=unique_standard_points,
+            representative_coefficients=representative_coefficients,
+            multiplicities=multiplicities,
+            modulus=modulus,
+            centered=centered,
         )
-        st.stop()
+
+        st.plotly_chart(
+            figure,
+            use_container_width=True,
+            config={"displaylogo": False},
+        )
+
+        with st.expander("How are these points computed?", expanded=False):
+            st.markdown(
+                "The app generates every integer coefficient vector "
+                f"**z ∈ [-{coefficient_limit}, {coefficient_limit}]³** and computes"
+            )
+            st.latex(r"x = Bz \pmod q")
+            st.markdown(
+                "The arithmetic is performed internally with standard residues "
+                "**0, …, q − 1**. If *Centered* is selected, only the displayed "
+                "coordinates are converted to centered representatives around zero."
+            )
+
+        return
 
     (
         _example_dimension,

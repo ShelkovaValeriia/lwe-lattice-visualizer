@@ -1,3 +1,4 @@
+import itertools
 from typing import Optional, Tuple, Union
 
 import numpy as np
@@ -152,3 +153,184 @@ def center_mod(values: NumericInput, modulus: int) -> NumericOutput:
         return int(centered)
 
     return centered
+
+
+def generate_coefficient_vectors(
+    dimension: int,
+    coefficient_limit: int,
+) -> np.ndarray:
+    """
+    Generate all integer coefficient vectors z in [-r, r]^dimension.
+    """
+    if dimension < 1:
+        raise ValueError("Dimension must be at least 1.")
+
+    if coefficient_limit < 0:
+        raise ValueError("Coefficient range must be non-negative.")
+
+    return np.array(
+        list(
+            itertools.product(
+                range(-coefficient_limit, coefficient_limit + 1),
+                repeat=dimension,
+            )
+        ),
+        dtype=int,
+    )
+
+
+def generate_modular_lattice_points(
+    B: np.ndarray,
+    modulus: int,
+    coefficient_limit: int,
+    centered: bool = True,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Generate points x = Bz (mod q).
+
+    Returns:
+        coefficient_vectors:
+            Integer vectors z used to generate the points.
+        standard_points:
+            Residues represented in [0, q - 1].
+        display_points:
+            Either centered residues or standard residues, depending on
+            the selected visualization mode.
+    """
+    _validate_modulus(modulus)
+
+    matrix = np.asarray(B)
+
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("Basis matrix B must be square.")
+
+    if not np.allclose(matrix, np.round(matrix)):
+        raise ValueError(
+            "Basis matrix B must contain only integers in modular mode."
+        )
+
+    matrix = np.round(matrix).astype(int)
+
+    coefficient_vectors = generate_coefficient_vectors(
+        dimension=matrix.shape[0],
+        coefficient_limit=coefficient_limit,
+    )
+
+    raw_points = coefficient_vectors @ matrix.T
+    standard_points = np.asarray(
+        mod_reduce(raw_points, modulus),
+        dtype=int,
+    )
+
+    if centered:
+        display_points = np.asarray(
+            center_mod(standard_points, modulus),
+            dtype=int,
+        )
+    else:
+        display_points = standard_points.copy()
+
+    return coefficient_vectors, standard_points, display_points
+
+
+def summarize_unique_modular_points(
+    coefficient_vectors: np.ndarray,
+    standard_points: np.ndarray,
+    display_points: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Collapse repeated modular residues for plotting.
+
+    Different coefficient vectors can map to the same residue after the
+    modulo operation. The function keeps one representative coefficient
+    vector and records how many mappings produced each displayed point.
+    """
+    if not (
+        len(coefficient_vectors)
+        == len(standard_points)
+        == len(display_points)
+    ):
+        raise ValueError(
+            "Coefficient vectors and modular point arrays must have equal length."
+        )
+
+    unique_display_points, first_indices, multiplicities = np.unique(
+        display_points,
+        axis=0,
+        return_index=True,
+        return_counts=True,
+    )
+
+    unique_standard_points = standard_points[first_indices]
+    representative_coefficients = coefficient_vectors[first_indices]
+
+    return (
+        unique_display_points,
+        unique_standard_points,
+        representative_coefficients,
+        multiplicities,
+    )
+
+
+def _integer_determinant(matrix: np.ndarray) -> int:
+    """Compute an exact determinant for the small integer matrices we use."""
+    matrix = np.asarray(matrix, dtype=int)
+
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("Matrix must be square.")
+
+    size = matrix.shape[0]
+
+    if size == 1:
+        return int(matrix[0, 0])
+
+    if size == 2:
+        return int(
+            matrix[0, 0] * matrix[1, 1]
+            - matrix[0, 1] * matrix[1, 0]
+        )
+
+    determinant = 0
+
+    for column in range(size):
+        minor = np.delete(
+            np.delete(matrix, 0, axis=0),
+            column,
+            axis=1,
+        )
+        determinant += (
+            (-1) ** column
+            * int(matrix[0, column])
+            * _integer_determinant(minor)
+        )
+
+    return int(determinant)
+
+
+def determinant_mod_q(B: np.ndarray, modulus: int) -> int:
+    """Return det(B) reduced modulo q."""
+    _validate_modulus(modulus)
+
+    matrix = np.asarray(B)
+
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("Basis matrix B must be square.")
+
+    if not np.allclose(matrix, np.round(matrix)):
+        raise ValueError(
+            "Basis matrix B must contain only integers in modular mode."
+        )
+
+    matrix = np.round(matrix).astype(int)
+
+    return _integer_determinant(matrix) % int(modulus)
+
+
+def is_invertible_mod_q(B: np.ndarray, modulus: int) -> bool:
+    """
+    Return True when B is invertible modulo q.
+
+    In the application q is restricted to primes, so a non-zero determinant
+    modulo q is sufficient for invertibility over Z_q.
+    """
+    return determinant_mod_q(B, modulus) != 0

@@ -21,7 +21,7 @@ def _set_modulus(value: int) -> None:
 
 
 def show_visualization_mode() -> str:
-    """Shows the top-level visualization mode selector."""
+    """Show the top-level visualization mode selector."""
     with st.sidebar:
         st.header("Mode")
 
@@ -38,8 +38,8 @@ def show_visualization_mode() -> str:
     return visualization_mode
 
 
-def show_modular_sidebar() -> tuple[str, int, str]:
-    """Shows the first controls for the modular 3D visualization mode."""
+def show_modular_sidebar() -> tuple[str, int, str, int]:
+    """Show controls for the modular 3D visualization mode."""
     with st.sidebar:
         st.header("Modular input")
 
@@ -56,8 +56,11 @@ def show_modular_sidebar() -> tuple[str, int, str]:
         selected_example_name = st.selectbox(
             "Preset basis",
             options=list(examples_for_dimension.keys()),
-            index=0,
-            help="Choose a 3D integer basis. You can still edit the matrix manually.",
+            index=1,
+            help=(
+                "Choose a 3D integer basis. The skewed preset is useful for "
+                "seeing wrap-around modulo q."
+            ),
         )
 
         selected_example = examples_for_dimension[selected_example_name]
@@ -130,20 +133,43 @@ def show_modular_sidebar() -> tuple[str, int, str]:
         )
 
         if residue_representation == "Centered":
-            if modulus == 2:
-                st.caption("Displayed residues: [-1, 0]")
-            else:
-                half = modulus // 2
-                st.caption(f"Displayed residues: [-{half}, ..., {half}]")
+            lower = -(modulus // 2)
+            upper = (modulus - 1) // 2
+            st.caption(f"Displayed residues: [{lower}, ..., {upper}]")
         else:
             st.caption(f"Displayed residues: [0, ..., {modulus - 1}]")
 
-    return basis_text, modulus, residue_representation
+        st.divider()
+        st.subheader("Coefficient vectors")
+
+        coefficient_limit = st.slider(
+            "Coefficient range r",
+            min_value=1,
+            max_value=5,
+            value=2,
+            help=(
+                "The app generates all integer vectors z in [-r, r]³ "
+                "before applying Bz mod q."
+            ),
+        )
+
+        coefficient_count = (2 * coefficient_limit + 1) ** 3
+        st.caption(
+            f"Generated z vectors: (2·{coefficient_limit}+1)³ = "
+            f"{coefficient_count}"
+        )
+
+    return (
+        basis_text,
+        modulus,
+        residue_representation,
+        coefficient_limit,
+    )
 
 
 def show_sidebar() -> tuple[str, dict, str, int, bool, str, str]:
     """
-    Shows all input controls in the sidebar for the classical mode.
+    Show all input controls in the sidebar for the classical mode.
     """
     with st.sidebar:
         st.header("Classical input")
